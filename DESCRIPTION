@@ -1,13 +1,14 @@
 Package: boringTictactoe
-Title: What the Package Does (One Line, Title Case)
+Title: Boring Tic-tac-toe game
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
+    person("Weishan", "Li", , "wli51@jh.edu", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
+Description: The package provides a function tictactoe one can call to start a session of tictactoe game where the player interacts with by typing into the console and the progress of game is printed out to the console. 
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.2
 Imports:
   stringr
+URL: https://github.com/wli51/boringTictactoe

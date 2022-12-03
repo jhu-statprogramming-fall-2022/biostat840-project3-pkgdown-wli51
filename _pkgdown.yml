@@ -1,0 +1,19 @@
+url: ~
+template:
+  bootstrap: 5
+  theme: breeze-light
+  bootswatch: lux
+  bslib:
+    pkgdown-nav-height: 100px
+home:
+  links:
+  - text: Wikipedia page for tic-tac-toe
+    href: https://en.wikipedia.org/wiki/Tic-tac-toe
+navbar:
+  bg: primary
+footer:
+  structure:
+    left: package
+    right: [built_with, legal]
+  components:
+    legal: The computer in this package plays randomly against you!
