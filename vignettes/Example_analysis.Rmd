@@ -1,0 +1,228 @@
+---
+title: "Example analysis"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Example analysis}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+#' @import ggplot2
+#' @import dplyr 
+#' @import tidyverse
+#' @import here
+#' @import readr
+library(boringTictactoe)
+
+```
+
+```{r}
+library(tidyverse)
+library(here)
+
+if(!dir.exists(here("data"))) { dir.create(here("data")) }
+
+# saves data only once (not each time you knit a R Markdown)
+if(!file.exists(here("data","tuition.RData"))) {
+  
+  url_csv <- "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-10-15/big_epa_cars.csv"
+  big_mtcars <- readr::read_csv(url_csv)
+  
+  # save the file to RDS objects
+  save(big_mtcars, file = here("data","big_mtcars.RData"), compress='xz')
+}
+```
+
+### Question to answer: How does the fuel consumption and associated fuel cost of hybrid and plugin hybrid electric vehicles vary by drive train and luggage space? Also, do major car makers have a difference in inclination to produce hybrid vehicles?
+
+The data came from U.S. Environmental Protection Agency (EPA) on car
+fuel efficiency.
+
+[source](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-10-15)
+
+[data
+dictionary](https://www.fueleconomy.gov/feg/ws/index.shtml#fuelType1)
+
+```{r}
+load(here("data","big_mtcars.RData"))
+big_mtcars <- big_mtcars %>% filter(!str_detect(eng_dscr, "CHEV")) %>% 
+  filter(str_detect(eng_dscr, "(HEV)|(PHEV)")) %>% 
+  select(cylinders, displ, drive, make, trany, trans_dscr, eng_dscr, evMotor, 
+         hlv, lv2, lv4, hpv, pv2, pv4,
+         city08, highway08, fuelCost08, fuelType1)
+
+big_mtcars <- as_tibble(big_mtcars)
+```
+
+```{r}
+
+#### Calculate unit fuel cost
+big_mtcars <- big_mtcars %>% 
+  mutate(fuel_unit_price = fuelCost08/(15000*0.55/city08 + 15000*0.45/highway08))
+
+regular_fuel_price <- 
+  big_mtcars %>% 
+  filter(fuelType1=="Regular Gasoline") %>% 
+  select(fuel_unit_price) %>% 
+  map_dbl(.f = mean)
+
+premium_fuel_price <- 
+  big_mtcars %>% 
+  filter(fuelType1=="Premium Gasoline") %>% 
+  select(fuel_unit_price) %>% 
+  map_dbl(.f = mean)
+
+big_mtcars <- big_mtcars %>% 
+  mutate(fuel_unit_price =
+    ifelse(big_mtcars$fuelType1=="Regular Gasoline", regular_fuel_price, premium_fuel_price))
+
+#### Calculate total passenger volume and total luggage volume 
+big_mtcars <- big_mtcars %>% 
+  mutate(passenger_volume = hpv + pv2 + pv4, luggage_volume = hlv + lv2 + lv4)
+
+#### compute 75% city, 25% highway combined cost of driving 15,000 miles 
+
+big_mtcars <- big_mtcars %>% 
+  mutate(annual_cost= 15000/weighted_mean_vector(city08, highway08, weights=c(0.75, 0.25))*fuel_unit_price)
+
+
+```
+
+```{r}
+big_mtcars <- big_mtcars %>% 
+  mutate(drive=
+           fct_collapse(drive, "FWD" = c("Front-Wheel Drive"), 
+                        "RWD" = c("Rear-Wheel Drive"), 
+                        "AWD" = c("4-Wheel or All-Wheel Drive", "4-Wheel Drive", "All-Wheel Drive")))
+```
+
+```{r}
+
+big_mtcars %>%
+  split(big_mtcars$drive) %>%
+  map(~ lm(annual_cost ~ displ + cylinders, data = .x)) %>%
+  map(summary)
+
+```
+
+```{r}
+big_mtcars %>% ggplot(aes(x=displ, y=annual_cost, color=drive)) +
+  geom_point() +
+  geom_smooth(method="lm") + 
+  facet_grid(.~drive, scales = "fixed") +
+  ylab("Annual Fuel Cost (Dollars)") + xlab("Engine Displacement (Liters)") + 
+  labs(title="Correlation between Engine Displacement and Annual Fuel Spending (15000 mile, 75% city and 25% highway), startified by drive type", 
+       subtitle = "For Hybrid and Plug-in Hybrid Electric Vehicles", 
+       caption = "Note consistent positive correaltion with engine displacement and fuel spending \n but significantly lower intercept for front wheel drive vehicles")
+```
+
+It seems like fuel cost is positively associated with engine
+displacement, which is reasonable, in all drive trains. The 3 drive
+trains also share a very similar slope in the linear models fitted.
+However, the front wheel drive has a significantly lower intercept (and
+hence lower baseline fuel spending), which is most likely due to FWD
+cars being most efficient (RWD and AWD cars need long transmission
+shafts to convey the power delivered by the frontal engine to rear
+tires, which may result in loss of efficiency).
+
+```{r}
+big_mtcars %>% ggplot(aes(x=luggage_volume, y=annual_cost, color=drive)) +
+  geom_point(aes(size=displ), alpha=0.3) +
+  geom_smooth(method="lm") + 
+  facet_grid(.~drive, scales = "fixed")+
+  ylab("Annual Fuel Cost (Dollars)") + xlab("Luggage Volume (cubic feet)") + 
+  labs(title="Correlation between Luggage Volume and Annual Fuel Spending (15000 mile, 75% city and 25% highway), startified by drive type", 
+       subtitle = "For Hybrid and Plug-in Hybrid Electric Vehicles", 
+       caption = "Note the weakly positive correaltion in all wheel drive cars, \n and apparent negative correation in front wheel and rear wheel drives \n Seems like luggage space itself is negatively correlated with engine displacement, \n so the negative trend is reasonable")
+```
+
+Interestingly, luggage volume seem to be negatively associated with fuel
+spending in FWD and RWD model. This apparently counterintuitive
+association (because one would larger luggage volume usually means
+larger, heavier chassis and higher fuel consumption) is probably
+attributable to the fact that cars with small to no luggage volumes are
+the more sporty cars that consumes more fuel, and the cars with ample
+luggage spaces are MPVs or SUVs that don't have as much emphasis on
+performance and hence consumes less fuel.
+
+```{r}
+load(here("data","big_mtcars.RData"))
+
+big_mtcars = big_mtcars%>% select(eng_dscr, make, model)
+big_mtcars = big_mtcars %>% replace_na(list(eng_dscr = '')) 
+big_mtcars = big_mtcars %>% 
+  mutate(iselectric=str_detect(eng_dscr, "HEV|PHEV") & 
+           !str_detect(eng_dscr, "CHEV"), placeholder=1)
+
+df = big_mtcars %>% group_by(make) %>% summarise(ev_count = sum(iselectric), total_count = sum(placeholder))
+df = df %>% filter(ev_count >= 1 & total_count >= 10) %>% mutate(ev_count = ev_count + 1, total_count = total_count + 1)
+
+chi_square_independence(data.matrix(df %>% select(ev_count, total_count)))
+```
+
+```{r}
+df %>% mutate("hybrid electric vehicle" = ev_count/total_count, 
+               "regular vechicle" = 1- ev_count/total_count) %>% 
+  pivot_longer(cols=!c(make, ev_count, total_count), 
+               names_to = "Type", values_to ="prop") %>%
+  ggplot(aes(fill = Type, y= prop, x= make)) + 
+    geom_bar(position="fill", stat="identity", width=0.5) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) + 
+  labs(title="Proportion of Hybrid cars produced by firms",
+       subtitle="Appears that Hybrid EVs are not very popular with most firms",
+       caption="Two firms seem to only produce hybrid cars") +
+  ylab("Proportion") +
+  xlab("Make")
+```
+
+The general trends seems to be car firms are unwilling to produce hybrid
+vehicles or the data set has some kind of selection bias in it.
+
+#### Functions used
+
+**tidytuesday:**
+
+1\. select
+
+2\. mutate
+
+3\. filter
+
+4\. str_detect
+
+5\. fct_collapse
+
+6\. replace_na
+
+**ggplot2:**
+
+1.geom_point
+
+2.geom_smooth
+
+3.geom_bar
+
+4.facet_grid
+
+**purrr:**
+
+1\. map
+
+2\. map_dbl
+
+**My package:**
+
+1\. weighted_mean_vector
+
+2\. chi_square_independence
