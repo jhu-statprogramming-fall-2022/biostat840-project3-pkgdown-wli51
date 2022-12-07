@@ -4,7 +4,7 @@ Version: 0.0.0.9000
 Authors@R: 
     person("Weishan", "Li", , "wli51@jh.edu", role = c("aut", "cre"),
            comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: The package provides a function tictactoe one can call to start a session of tictactoe game where the player interacts with by typing into the console and the progress of game is printed out to the console. 
+Description: The package provides a function tictactoe one can call to start a session of tictactoe game where the player interacts with by typing into the console and the progress of game is printed out to the console. Also happens to have 2 other functions that does weighted average and chi-square test of independence. 
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
